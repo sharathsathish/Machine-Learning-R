@@ -1,0 +1,102 @@
+```{r}
+require(Metrics)
+require(boot)
+require(glmnet)
+require(gam)
+require(tree)
+require(randomForest)
+require(gbm)
+require(clusterSim)
+```
+
+# read data and plot
+```{r}
+train = read.csv("train.csv")
+test = read.csv("test.csv")
+plot(train$count)
+boxplot(train$count)
+hist(train$count)
+acf(train$count,type="correlation")
+```
+
+# check for missing values
+```{r}
+na_train = sum(is.na(train))
+print(na_train)
+na_test = sum(is.na(test))
+print(na_test)
+```
+
+# Factorization of categorical variables & Normalization of real variables
+```{r}
+trainf = train
+trainf$season = factor(train$season)
+trainf$holiday = factor(train$holiday)
+trainf$workingday = factor(train$workingday)
+trainf$weather = factor(train$weather)
+
+trainf$time = substring(train$datetim,12,20)
+trainf$hour = as.numeric(substr(trainf$time,1,2))
+trainf$daypart = "4"
+trainf$daypart[(trainf$hour < 10) & (trainf$hour > 3)] = 1
+trainf$daypart[(trainf$hour < 16) & (trainf$hour > 9)] = 2
+trainf$daypart[(trainf$hour < 22) & (trainf$hour > 15)] = 3
+trainf$daypart = as.factor(trainf$daypart)
+trainf$hour = as.factor(trainf$hour)
+trainf$day = weekdays(as.Date(trainf$datetime))
+trainf$day = as.factor(trainf$day)
+trainf$sunday[trainf$day == "Sunday"] = "1"
+trainf$sunday[trainf$day != "1"] = "0"
+trainf$sunday = as.factor(trainf$sunday)
+
+trainf$temp = data.Normalization(trainf$temp,type="n1",normalization="column")
+trainf$atemp = data.Normalization(trainf$atemp,type="n1",normalization="column")
+trainf$humidity = data.Normalization(trainf$humidity,type="n1",normalization="column")
+trainf$windspeed = data.Normalization(trainf$windspeed,type="n1",normalization="column")
+
+trainfin = trainf[,c(2:9,12,14:15,17)]
+trainxinp = trainf[,c(2:9,14:15,17)]
+
+testf = test
+test$season = factor(test$season)
+test$holiday = factor(test$holiday)
+test$workingday = factor(test$workingday)
+testf$weather = factor(test$weather)
+
+testf$time = substring(test$datetim,12,20)
+testf$hour = as.numeric(substr(testf$time,1,2))
+testf$daypart = "4"
+testf$daypart[(testf$hour < 10) & (testf$hour > 3)] = 1
+testf$daypart[(testf$hour < 16) & (testf$hour > 9)] = 2
+testf$daypart[(testf$hour < 22) & (testf$hour > 15)] = 3
+testf$daypart = as.factor(testf$daypart)
+testf$hour = as.factor(testf$hour)
+testf$day = weekdays(as.Date(testf$datetime))
+test$day = as.factor(testf$day)
+testf$sunday[testf$day == "Sunday"] = "1"
+testf$sunday[testf$day != "1"] = "0"
+testf$sunday = as.factor(testf$sunday)
+
+testf$temp = data.Normalization(testf$temp,type="n1",normalization="column")
+testf$atemp = data.Normalization(testf$atemp,type="n1",normalization="column")
+testf$humidity = data.Normalization(testf$humidity,type="n1",normalization="column")
+testf$windspeed = data.Normalization(testf$windspeed,type="n1",normalization="column")
+
+testfin = testf[,c(2:9,11:12,14)]
+```
+
+# Model
+```{r}
+fit = randomForest(trainfin$count~.,trainfin,mtry=5,importance=T,ntree= 100)
+summary(fit)
+plot(fit,main="Train data fitting")
+```
+
+# Prediction
+```{r}
+pred = preict(fit,testfin,n.trees=100)
+submit = data.frame(datetime = test$datetime,count=pred)
+write.csv(submit,file="submit_file.csv",row.names = FALSE)
+```
+
+
